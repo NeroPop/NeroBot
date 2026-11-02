@@ -126,9 +126,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     };
 
     try {
-      // If the command already replied, we must send a follow-up instead.
-      if (interaction.replied || interaction.deferred) {
+      if (interaction.replied) {
+        // The command already replied, so we send a private follow-up.
         await interaction.followUp(errorReply);
+      } else if (interaction.deferred) {
+        // The command said "working on it" but never finished, so we fill in that reply.
+        await interaction.editReply({ content: errorReply.content });
       } else {
         await interaction.reply(errorReply);
       }
