@@ -1,0 +1,25 @@
+'Log files:
+/home/container/.npm/_logs/2026-07-11T21_28_51_051Z-debug-0.log
+
+# npm resolution error report
+
+While resolving: google-spreadsheet@4.1.0
+Found: google-auth-library@10.9.0
+node_modules/google-auth-library
+  google-auth-library@"^10.9.0" from the root project
+  google-auth-library@"^10.2.0" from googleapis@173.0.0
+  node_modules/googleapis
+    googleapis@"^173.0.0" from the root project
+
+Could not resolve dependency:
+peerOptional google-auth-library@"^8.8.0" from google-spreadsheet@4.1.0
+node_modules/google-spreadsheet
+  google-spreadsheet@"^4.1.0" from the root project
+
+Conflicting peer dependency: google-auth-library@8.9.0
+node_modules/google-auth-library
+  peerOptional google-auth-library@"^8.8.0" from google-spreadsheet@4.1.0
+  node_modules/google-spreadsheet
+    google-spreadsheet@"^4.1.0" from the root project
+
+Fix the upstream dependency conflict, or retry this command with --force or --legacy-peer-deps to accept an incorrect (and potentially broken) dependency resolution.
