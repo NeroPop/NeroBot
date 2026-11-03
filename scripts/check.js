@@ -108,6 +108,11 @@ try {
     if (typeof tab !== 'string' || tab.trim() === '') fail(`config: sheetTabs.${name} must be the name of a tab.`);
   }
 
+  // Every reminder setting must be a sensible whole number (1 or more).
+  for (const [name, value] of Object.entries(config.reminders)) {
+    if (!Number.isInteger(value) || value < 1) fail(`config: reminders.${name} must be a whole number of 1 or more.`);
+  }
+
   // The time zone must be one the computer knows.
   try {
     new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone });
