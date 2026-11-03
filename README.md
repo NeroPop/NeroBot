@@ -292,7 +292,7 @@ humans and can say anything. Row 1 is skipped when reading.
 | **Cats** (`cats`) | `Sheet1` | A: cat name, B: picture link |
 | **Quotes** (`quotes`) | `Sheet1` | A: author, B: quote |
 | **Prompts** (`prompts`) | `Sheet1` | A: who suggested it, B: the prompt |
-| **Meme text** (`memeText`) | `Sheet1` | `/meme` reads the words from column A. `/addmemetext` writes the name of the person in column A and the words in column B. |
+| **Meme text** (`memeText`) | `Sheet1` | A: the words that can go on a meme, B: who added them. `/meme` only reads column A. |
 | **Suggestions** (`suggestions`) | `Sheet1` | A: Discord username, B: the idea |
 | **Debts** (`debts`) | `Totals` | A: person's name, B: total they owe (this is what `/checkdebt` shows) |
 | | `Invoice` | A: name, B: date, C: reason, D: amount |
@@ -577,7 +577,7 @@ Edit `reminders` in `config.js` (how far ahead, how often to check, how many tri
 | Google error about permission, or "not found" | The spreadsheet is not shared with the service account, or the ID is wrong, or the Sheets API is off | Share it (Editor) with the `client_email`, check the ID in `config.js`, enable the Sheets API. |
 | `The spreadsheet ... has no tab called ...` | A tab name in `sheetTabs` does not match the spreadsheet | Fix the tab name in `config.js` or rename the tab. |
 | `/meme` says the meme maker is not set up | `IMGFLIP_USERNAME` or `IMGFLIP_PASSWORD` is missing from `.env` | Add them and restart. |
-| `/meme` puts names on the pictures instead of words | `/meme` reads column A of the Meme text sheet, and `/addmemetext` puts the person's name there | See the note in section 5. Rearrange the sheet so the words are in column A. |
+| `/meme` puts a person's name on a picture | Some rows were added by the old bot, which saved the name in column A and the words in column B | Swap those two cells by hand in the Meme text sheet. `/meme` only reads column A. |
 | A reminder did not go off | The bot was offline (it sends late ones when it returns), or it could not post in the channel and could not DM you | Check the `Sent` column of the Reminders sheet and the console. |
 | `That is not a time I understand` | The `when` box has something the bot cannot read | The message shows examples. Try `30m`, `tomorrow 9am` or `2pm in 3 months`. |
 | `/featureupdatechangelog` says the changelog has no date | `date` in `lib/changelog.js` is empty | Set it, push, restart (section 9). |
