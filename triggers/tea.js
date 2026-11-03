@@ -1,7 +1,8 @@
 // triggers/tea.js
 //
-// A chat trigger. When a message contains the letters "tea", the bot replies with a random
+// A chat trigger. When a message contains the word "tea", the bot replies with a random
 // tea quote. To add a quote, add a line to the list below.
+// (A message with a 👀 in it also gets a 👀 reaction from triggers/eyes.js. They work separately.)
 
 const { pickRandom } = require('../lib/random');
 
@@ -75,20 +76,18 @@ const teaQuotes = [
 ];
 
 module.exports = {
-  // The pattern: does the message contain "tea" (capital letters do not matter)?
-  pattern: /tea/i,
+  // The pattern: does the message contain the whole word "tea" (capital letters do not matter)?
+  // \b means "the edge of a word", so words that only contain the letters (team, steak, instead)
+  // do not count.
+  pattern: /\btea\b/i,
 
   // Optional examples. "npm run check" tests the pattern against them.
   examples: {
-    shouldMatch: ['I love tea', 'TEA time', 'a nice cup of Tea please'],
-    shouldNotMatch: ['coffee only', 'hello there'],
+    shouldMatch: ['I love tea', 'TEA time', "Tea's ready", 'a nice cup of Tea please', 'tea!', 'tea 👀'],
+    shouldNotMatch: ['steak', 'team meeting', 'instead', 'teacher', 'coffee only', 'hello there'],
   },
 
   async execute(message) {
-    // For now a message with 👀 in it only gets the 👀 reaction (see triggers/eyes.js),
-    // exactly as the bot always did.
-    if (message.content.includes('👀')) return;
-
     await message.channel.send(pickRandom(teaQuotes));
   },
 };
