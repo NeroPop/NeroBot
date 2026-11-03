@@ -37,9 +37,19 @@ if (!token) {
 }
 
 // ---- 2. Load commands, triggers and services -----------------------------
-const commands = loadCommands();
-const triggers = loadTriggers();
-const services = loadServices();
+// If a file is written wrongly, the message names the file. We show it plainly and stop,
+// instead of starting a bot that is missing features.
+let commands;
+let triggers;
+let services;
+try {
+  commands = loadCommands();
+  triggers = loadTriggers();
+  services = loadServices();
+} catch (error) {
+  console.error(`The bot cannot start because of a problem in its files: ${error.message}`);
+  process.exit(1);
+}
 
 // Put the commands in a lookup table so we can find one by its name quickly.
 const commandsByName = new Map(commands.map((command) => [command.data.name, command]));
