@@ -10,5 +10,8 @@ google-credentials.json
 # Packages. The hosting runs "npm install" itself, so these do not belong on GitHub.
 node_modules/
 
+# npm's download cache. It is created by the hosting and is hundreds of megabytes.
+.npm/
+
 # Log files.
 *.log

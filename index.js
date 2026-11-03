@@ -1,137 +1,207 @@
-require("dotenv").config();
-const { Client, GatewayIntentBits, Partials, Collection } = require("discord.js");
-const fs = require("fs");
-const { startReminderScheduler } = require("./reminderScheduler");
+// index.js
+//
+// The main file. Your hosting runs this file to start the bot (the startup file is index.js).
+//
+// What it does, in order:
+//   1. Reads the secret token from the .env file.
+//   2. Loads every slash command (commands folder), chat trigger (triggers folder) and
+//      background service (services folder).
+//   3. Logs in to Discord.
+//   4. Tells Discord which slash commands exist.
+//   5. Checks the Google Sheets can be reached, and starts the background services.
+//   6. Listens for slash commands and for chat messages.
 
-// Express app for uptime (keep it if needed)
-const express = require("express");
-const app = express();
-app.listen(3000, () => console.log("Project is running!"));
-app.get("/", (req, res) => res.send("Hello world!"));
+const path = require('node:path');
+const { Client, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { loadCommands, loadTriggers, loadServices } = require('./lib/loadFiles');
+const { checkConnection } = require('./lib/sheets');
+const { ownerId, sheetIds } = require('./config');
 
-// Create Discord client
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
-  allowedMentions: { parse: ["users"] },
-});
-
-const prefix = "-";
-client.commands = new Collection();
-
-// Load command files
-const commands = fs.readdirSync("./Commands").filter(file => file.endsWith(".js"));
-for (const file of commands) {
-  const commandName = file.split(".")[0];
-  const command = require(`./Commands/${commandName}`);
-  client.commands.set(commandName, command);
+// ---- 1. Read the secret token --------------------------------------------
+// Secrets are kept in a file called ".env" in this folder (see the README). It is never uploaded to GitHub.
+// This loads that file so the token becomes available as process.env.DISCORD_TOKEN.
+// If there is no .env file we carry on, because the token may be set another way.
+try {
+  process.loadEnvFile(path.join(__dirname, '.env'));
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error; // ENOENT only means "no .env file"
 }
 
-// Message handler
-client.on("messageCreate", (message) => {
-  const senderID = message.author.id;
-  const botID = client.user?.id;
+// Tidy up the token: copy and paste often adds invisible spaces or line breaks
+// at the ends, and some tools wrap the value in quote marks. Remove both.
+const token = (process.env.DISCORD_TOKEN || '').trim().replace(/^["']|["']$/g, '').trim();
 
-  if (senderID === botID || message.author.bot) return;
+if (!token) {
+  console.error('No DISCORD_TOKEN found. Add it to the .env file (see the README).');
+  process.exit(1);
+}
 
-  if (message.content.startsWith("- ")) return;
+// ---- 2. Load commands, triggers and services -----------------------------
+// If a file is written wrongly, the message names the file. We show it plainly and stop,
+// instead of starting a bot that is missing features.
+let commands;
+let triggers;
+let services;
+try {
+  commands = loadCommands();
+  triggers = loadTriggers();
+  services = loadServices();
+} catch (error) {
+  console.error(`The bot cannot start because of a problem in its files: ${error.message}`);
+  process.exit(1);
+}
 
-  if (message.content.startsWith(prefix)) {
-    const args = message.content.slice(prefix.length).trim().split(/ +/g);
-    const commandName = args.shift().toLowerCase();
-    const command = client.commands.get(commandName);
+// Put the commands in a lookup table so we can find one by its name quickly.
+const commandsByName = new Map(commands.map((command) => [command.data.name, command]));
 
-    if (!command) {
-      message.channel.send({ content: "That command doesn't exist!" });
-    } else if (args.join(" ").length > 1900) {
-      message.channel.send({ content: "Error: message too long (2000 char limit)." });
-    } else {
-      command.run(client, message, args);
+// ---- 3. Create the Discord client ----------------------------------------
+// "Intents" tell Discord which kinds of events we want to receive.
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds, // basic server information, needed for slash commands
+    GatewayIntentBits.GuildMessages, // messages sent in server channels
+    GatewayIntentBits.MessageContent, // the actual text of those messages (needed by the triggers)
+  ],
+  allowedMentions: { parse: ['users'] }, // the bot can ping people, but never @everyone or roles
+});
+
+// Hand the lists to the commands that need them (for example /features lists every command).
+client.commands = commands;
+
+// ---- 4. When the bot is ready: register the slash commands ---------------
+client.once(Events.ClientReady, async (readyClient) => {
+  console.log(`Logged in as ${readyClient.user.tag}`);
+
+  try {
+    // set() replaces the bot's full list of global slash commands with ours.
+    // That means deleting a command file removes the command on the next restart.
+    const commandData = commands.map((command) => command.data.toJSON());
+    await readyClient.application.commands.set(commandData);
+    console.log(`Registered ${commandData.length} slash command(s).`);
+  } catch (error) {
+    console.error('Could not register slash commands:', error);
+  }
+
+  // Check every Google Sheet listed in config.js, so any problem shows up in the console
+  // straight away instead of the first time someone uses a command that needs it.
+  // The rest of the bot keeps working even if this fails.
+  for (const [label, spreadsheetId] of Object.entries(sheetIds)) {
+    try {
+      const title = await checkConnection(spreadsheetId);
+      console.log(`Connected to Google Sheet "${title}" (${label}).`);
+    } catch (error) {
+      console.warn(`Google Sheet "${label}" is not available: ${error.message}`);
     }
-  } else if (message.content.includes("👀")) {
-    message.react("👀");
-  } else if (message.content.toLowerCase().includes("tea")) {
-    const teaQuotes = [
-        "I LOVE TEA GREATLY",
-        "TEA IS VERY NICE",
-        "EVERYONE LOVES TEA",
-        "Tea is a good idea",
-        "Tea is good",
-        "Time for a cuppa",
-        "tea is what gives me a soul",
-        "Life is brew-tea-ful with a cup of tea",
-        "Sip, sip, hooray! It's tea time",
-        "You're my cup of tea",
-        "Te,a-rrific times ahead",
-        "Keep calm and drink tea",
-        "Tea is the elixir of life",
-        "Tea, though ridiculed by those who are naturally coarse in their nervous sensibilities, will always be the favorite beverage of the intellectual",
-        "Where there is tea, there is hope",
-        "Tea is a religion of the art of life",
-        "The first sip is joy, the second is gladness, the third is serenity, the fourth is madness",
-        "Tea is to the body as music is to the soul",
-        "A cup of tea makes everything better",
-        "Take life one sip at a time",
-        "When life gives you lemons, add some tea",
-        "Tea is a gentle reminder to slow down and savor the moment",
-        "The aroma of tea carries stories untold",
-        "Tea is a silent conversation, a bridge between minds and hearts",
-        "Tea is a gentle healer, soothing both body and mind",
-        "Tea, a humble leaf that unfolds a world of possibilities",
-        "Tea, an invitation to cherish the present moment",
-        "Tea: the magic key to the vault where my brain is kept.",
-        "Sereni-tea in a world full of chaos.",
-        "Tea is liquid wisdom.",
-        "Embrace the cozy side of life with a cup of tea.",
-        "Inhale the aroma, exhale the stress—tea makes it all better.",
-        "Tea is like a hug in a cup.",
-        "Let your worries steep away with a cup of herbal harmony.",
-        "Tea time is me time.",
-        "Tea is the answer, no matter the question.",
-        "Finding calm within the chaos, one tea cup at a time.",
-        "Tea: because adulting is hard.",
-        "Life is like a cup of tea; it's all in how you make it.",
-        "Tea is a cup of sunshine on a cloudy day.",
-        "Tea is the whisper of leaves, the echo of nature's tranquility.",
-        "Drown in a sea of tea and let the world float by.",
-        "Tea, the balm for the soul's wounds.",
-        "In the world of ordinary, be extraordinary—drink tea.",
-        "Tea is a voyage in a cup.",
-        "The art of tea is a slow dance with time.",
-        "Tea: where pleasure meets peace.",
-        "Tea-riffic moments start with a steep.",
-        "Chai some, you'll love it!",
-        "Tea is a hug in a mug.",
-        "Pour yourself a cup of positivi-tea.",
-        "Tea: the key to inner peace and tranquili-tea.",
-        "Savor the sip, embrace the bliss—tea is pure happiness.",
-        "Steeped in love, brewed in joy—every cup tells a story.",
-        "Tea: the antidote to a hectic day.",
-        "Infuse your day with a dash of tea-liciousness.",
-        "Sip by sip, life's problems disappear in the warmth of tea.",
-        "Tea is like a good friend; always there to lift your spirits.",
-        "Chamomile: the calm in the storm of life.",
-        "Tea is a conversation starter, a sip is the punctuation.",
-        "Warm your hands, warm your heart—tea does both.",
-        "Let your worries steep away in the comforting embrace of tea.",
-        "Tea is the silent poetry of the morning.",
-        "That sounds Tea-rrible",
-        "I'm your perfect matcha",
-    ];
-    const random = teaQuotes[Math.floor(Math.random() * teaQuotes.length)];
-    message.channel.send(random);
+  }
+
+  // Start the background services (for example the reminder sender).
+  // One service failing to start never stops the others.
+  for (const service of services) {
+    try {
+      const status = await service.start(readyClient);
+      console.log(`Service "${service.name}" is running${status ? ` (${status})` : ''}.`);
+    } catch (error) {
+      console.warn(`Service "${service.name}" could not start: ${error.message}`);
+    }
   }
 });
 
-client.once("ready", () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  startReminderScheduler(client);
+// ---- 5a. Slash commands --------------------------------------------------
+client.on(Events.InteractionCreate, async (interaction) => {
+  // Ignore anything that is not a slash command (buttons and menus, for example).
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = commandsByName.get(interaction.commandName);
+  if (!command) return; // Discord knows a command we no longer have
+
+  try {
+    // Some commands are only for the owner. Everyone else gets a short, private refusal.
+    // (Discord cannot hide a command from one particular person, so we check here.)
+    if (command.ownerOnly && interaction.user.id !== ownerId) {
+      await interaction.reply({
+        content: "Only Nero's owner can use this command.",
+        flags: MessageFlags.Ephemeral, // "Ephemeral" means only the user can see it
+      });
+      return;
+    }
+
+    await command.execute(interaction);
+  } catch (error) {
+    // The technical details go to the console. The user gets a short, private message.
+    console.error(`Error in /${interaction.commandName} (commands/${interaction.commandName}.js):`, error);
+
+    const errorReply = {
+      content: 'Something went wrong running that command. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    };
+
+    try {
+      if (interaction.replied) {
+        // The command already replied, so we send a private follow-up.
+        await interaction.followUp(errorReply);
+      } else if (interaction.deferred) {
+        // The command said "working on it" but never finished, so we fill in that reply.
+        await interaction.editReply({ content: errorReply.content });
+      } else {
+        await interaction.reply(errorReply);
+      }
+    } catch (replyError) {
+      console.error('Could not send the error message either:', replyError);
+    }
+  }
 });
 
-// Login
-client.login(process.env.TOKEN);
+// ---- 5b. Chat triggers ---------------------------------------------------
+client.on(Events.MessageCreate, async (message) => {
+  // Ignore other bots (and ourselves) so bots can never set each other off.
+  if (message.author.bot) return;
+
+  for (const trigger of triggers) {
+    // Skip triggers whose pattern does not match this message.
+    if (!trigger.pattern.test(message.content)) continue;
+
+    try {
+      await trigger.execute(message);
+    } catch (error) {
+      // One broken trigger must never crash the bot. Log it and move on.
+      // A common cause is the bot missing permission to reply in that channel.
+      console.error(`Error in trigger "${trigger.name}" (triggers/${trigger.name}.js):`, error);
+    }
+  }
+});
+
+// ---- Safety nets ---------------------------------------------------------
+// These log unexpected errors instead of letting them shut the whole bot down.
+client.on(Events.Error, (error) => console.error('Discord client error:', error));
+process.on('unhandledRejection', (error) => console.error('Unhandled rejection:', error));
+process.on('uncaughtException', (error) => console.error('Uncaught exception:', error));
+
+// ---- 6. Log in -----------------------------------------------------------
+client.login(token).catch((error) => {
+  console.error(`Could not log in to Discord: ${error.message}`);
+
+  // Help with the most common problem without ever printing the token itself.
+  // A real bot token is about 72 characters long and has 3 parts joined by dots.
+  console.error(
+    `The saved token is ${token.length} characters long and has ${token.split('.').length} part(s). ` +
+      'A real bot token has 3 parts. If that does not match, copy the token again from the ' +
+      'Bot page in the Discord Developer Portal (use Reset Token if needed) and save it in the ' +
+      '.env file.'
+  );
+
+  // The first part of a bot token is the bot's ID, encoded. That ID is public
+  // (it is the Application ID in the Developer Portal), so it is safe to print.
+  // If it matches your Application ID, the token is for the right bot but has
+  // probably been reset since you copied it. If it does not match, it is the wrong bot.
+  const botId = Buffer.from(token.split('.')[0], 'base64').toString();
+  if (/^\d+$/.test(botId)) {
+    console.error(`This token belongs to the bot with ID ${botId}. Compare it with the Application ID in the Developer Portal.`);
+  } else {
+    console.error('The start of this token does not look like a bot ID, so it is probably not a bot token.');
+  }
+
+  // Close the connection properly, then exit with an error code.
+  // (Exiting instantly while it is still closing can crash on Windows.)
+  client.destroy();
+  process.exitCode = 1;
+});
