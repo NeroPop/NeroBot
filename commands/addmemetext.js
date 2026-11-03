@@ -2,7 +2,7 @@
 //
 // The /addmemetext command. Adds words to the meme spreadsheet. /meme picks words from this
 // spreadsheet to put on its pictures.
-// Column A gets the name of the person adding it and column B gets the text.
+// Column A gets the text (that is the column /meme reads) and column B gets the name of the person adding it.
 
 const { SlashCommandBuilder, InteractionContextType, EmbedBuilder, Colors } = require('discord.js');
 const { sheetIds, sheetTabs } = require('../config');
@@ -25,7 +25,7 @@ module.exports = {
     // Use the person's server nickname if they have one, otherwise their username.
     const authorName = interaction.member?.displayName ?? interaction.user.username;
 
-    await appendRow(sheetIds.memeText, sheetTabs.memeText, [authorName, newText], 'A:B');
+    await appendRow(sheetIds.memeText, sheetTabs.memeText, [newText, authorName], 'A:B');
     console.log(`😂 New meme text added by ${authorName}: "${newText}"`);
 
     const embed = new EmbedBuilder()
