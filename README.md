@@ -469,28 +469,36 @@ the latest code from GitHub and runs `npm install`. So the routine is:
 2. Commit and push to `main`.
 3. **Restart the server** in the panel. The new code is now live.
 
-### Server settings (the Startup page)
+### Server settings (Configuration, then Startup)
 
-| Setting | Value |
+| Setting (as Wispbyte names it) | Value |
 |---|---|
-| Docker image | **Node.js 24** (`nodejs_24`). Node 22 or older will not work. |
-| Git repo address | `https://github.com/NeroPop/NeroBot.git` |
-| Install branch | `main` |
-| User uploaded files | **Off** |
-| Auto update | **1** (pulls the latest code at every start. `0` means it never does.) |
-| Main file | `index.js` |
-| Additional node packages | **empty** (`package.json` already lists everything, and `npm install` installs it) |
-| Uninstall node packages | **empty** |
-| Startup command | The panel's standard Node.js command. It should end by running `node "/home/container/${MAIN_FILE}"` once, with no second `node index.js` line after it. |
+| Image (Docker image) | **nodejs_24**. Node 22 or older will not work. |
+| Git Repo Address | `https://github.com/NeroPop/NeroBot.git` |
+| Install Branch | `main` |
+| User Uploaded Files | **Off** |
+| Auto Update | **On**. It pulls the latest code at every start. Off means it never does. |
+| JS file | `index.js` |
+| Packages (installed every start) | **empty**. `package.json` already lists everything, and `npm install` installs it. Remove `dotenv` and `discord.js` if they are there. |
+| Uninstall Node packages | **empty** |
+| Git Username, Git Access Token | empty while the repository is public |
 
-The standard command looks like this (the `${...}` parts are filled in by the panel from the settings above):
+The startup command is Wispbyte's standard one. The `{{...}}` and `${...}` parts are filled in from the settings above:
 
 ```text
-if [[ -d .git ]] && [[ ${AUTO_UPDATE} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node "/home/container/${MAIN_FILE}" ${NODE_ARGS}
+if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}
 ```
 
-What each part does, in order: pull the latest code (only when Auto update is 1), install any "additional" packages,
-uninstall any "uninstall" packages, run `npm install` to install everything in `package.json`, then start the bot.
+What each part does, in order: pull the latest code (only when Auto Update is on **and** the folder is a git
+clone, meaning it has a hidden `.git` folder), install any "Packages", uninstall any "Uninstall Node packages", run
+`npm install` to install everything in `package.json`, then start the bot. The command should end there. It
+must not have another line such as `node index.js` after it.
+
+**Checking that updates really arrive.** In the console at start-up, look for the first line of the command. It
+should say `[[ 1 == "1" ]]`. If it says `[[ 0 == "1" ]]`, Auto Update is still off. When the pull works you also see
+git messages (like `Updating` or `Already up to date.`) and then the bot's own start-up lines
+(`Registered 32 slash command(s).`). If you never see git messages and the old bot still runs, the folder is not a
+git clone. See "Troubleshooting".
 
 Then create the `.env` file (section 6) in the panel's **Files** tab. It is not in GitHub, so it is not touched by
 updates.
@@ -584,6 +592,7 @@ Edit `reminders` in `config.js` (how far ahead, how often to check, how many tri
 | `No commands were found` at start | The folder is not called `commands` in lowercase | Rename it. Linux hosting treats `Commands` and `commands` as different folders. |
 | `Cannot find module` or the server crashes at start | `npm install` did not run, or a file is in the wrong place | Check the console above the error; run `npm install`. |
 | Every reply appears twice | Two copies of the bot are running with the same token | Stop one. |
+| The console never shows git messages and the old bot keeps running | Auto Update is off, or the server folder was never cloned from GitHub (no `.git` folder) | Turn Auto Update on. If it still never pulls: take a Snapshot, download `.env` from the Files tab, delete the other files, use **Reinstall Server** so it clones the repository, then upload `.env` again. |
 | `git pull` complains about local changes (in the panel console) | A file on the server was edited by hand | Back up the `.env` file, then use the panel's **Reinstall Server**. |
 | `npm run check` fails | A file is written wrongly | It names the file and the problem. Fix it and run it again. |
 
