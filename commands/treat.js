@@ -55,6 +55,9 @@ const footers = [
   'NeroBot emits soft happy beeps 🤖💙',
 ];
 
+// The little emoji NeroBot reacts with, to show he is pleased.
+const reactionEmojis = ['🍪', '🐾', '😻', '💙'];
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('treat') // must match the file name (treat.js)
@@ -72,5 +75,15 @@ module.exports = {
       });
 
     await interaction.reply({ embeds: [embed] });
+
+    // NeroBot reacts to his own reply with a random emoji to show his appreciation.
+    // (A slash command has no message from you to react to, so he reacts to his reply.)
+    // If the bot is not allowed to add reactions here, the treat still worked, so we only warn.
+    try {
+      const reply = await interaction.fetchReply();
+      await reply.react(pickRandom(reactionEmojis));
+    } catch (error) {
+      console.warn(`Could not add a reaction to the treat reply (commands/treat.js): ${error.message}`);
+    }
   },
 };
