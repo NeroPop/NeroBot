@@ -28,6 +28,24 @@ module.exports = {
     announcementChannels: '1rPOrOgg0tkK12VuaDSahW-mJ954LM51jVWa0baZ-cNc', // where each server gets announcements
   },
 
+  // Settings for the reminders (/reminder, /reminderdm and /reminderlist).
+  reminders: {
+    // How far ahead a reminder can be set, in days.
+    maxAheadDays: 730,
+
+    // How often the bot checks whether a reminder is due, in seconds.
+    checkEverySeconds: 15,
+
+    // How often the bot re-reads the reminders spreadsheet, in minutes. This picks up edits made
+    // by hand in the sheet. (Reminders made with the commands are noticed straight away.)
+    refreshEveryMinutes: 5,
+
+    // If a reminder fails to send (for example Discord had a hiccup), try again after this many
+    // minutes, and give up after this many tries in total.
+    retryAfterMinutes: 2,
+    giveUpAfterTries: 3,
+  },
+
   // The name of the tab (the label at the bottom of the spreadsheet) the bot uses in each sheet.
   // Sheets that were made with Google's defaults use "Sheet1".
   sheetTabs: {
