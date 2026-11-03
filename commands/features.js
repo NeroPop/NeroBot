@@ -13,9 +13,6 @@ const { sendPages } = require('../lib/paginate');
 // How many commands to show on each page. (Discord allows up to 25 on one embed.)
 const COMMANDS_PER_PAGE = 15;
 
-// The colour of each page, in turn.
-const PAGE_COLORS = [Colors.Blurple, '#fb9500'];
-
 // Writes how a command is typed, like "/addcat [name] [link]".
 function usageOf(commandJson) {
   const options = (commandJson.options ?? []).filter((option) => option.type > 2); // skip subcommands (types 1 and 2)
@@ -44,7 +41,7 @@ module.exports = {
       const commandsOnPage = shown.slice(pageNumber * COMMANDS_PER_PAGE, (pageNumber + 1) * COMMANDS_PER_PAGE);
 
       const embed = new EmbedBuilder()
-        .setColor(PAGE_COLORS[pageNumber % PAGE_COLORS.length])
+        .setColor(Colors.Blurple) // the same blue-purple on every page
         .setTitle(`🧠 Nero Bot Features - Page ${pageNumber + 1}`)
         .addFields(commandsOnPage.map((command) => ({ name: usageOf(command), value: command.description })))
         .setFooter({ text: `Page ${pageNumber + 1} of ${pageCount} - Nero Bot • Feature Overview` });
